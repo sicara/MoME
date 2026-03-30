@@ -34,8 +34,15 @@ from nnunetv2.utilities.plans_handling.plans_handler import PlansManager, Config
 from nnunetv2.utilities.utils import create_lists_from_splitted_dataset_folder
 from nnunetv2.training.nnUNetTrainer.Dispatch_network import DispatchNetwork,DispatchNetwork1,ClsDispatchNet
 import csv
+import functools as _functools
 
-import csv
+# Patch torch.load for older checkpoints (weights_only default changed in PyTorch 2.6)
+_orig_torch_load = torch.load
+@_functools.wraps(_orig_torch_load)
+def _safe_load(*args, **kwargs):
+    kwargs.setdefault('weights_only', False)
+    return _orig_torch_load(*args, **kwargs)
+torch.load = _safe_load
 
 class nnUNetPredictor(object):
     def __init__(self,
@@ -694,7 +701,7 @@ class nnUNetPredictor(object):
         self.network = self.network.to(self.device)
         self.network.eval()
         self.network1 = self.network1.to(self.device)
-        self.network.eval()
+        self.network1.eval()
         self.network2 = self.network2.to(self.device)
         self.network2.eval()
         self.network3 = self.network3.to(self.device)
@@ -831,7 +838,7 @@ def predict_entry_point_modelfolder():
         "Nature methods, 18(2), 203-211.\n#######################################################################\n")
 
     args = parser.parse_args()
-    args.f = [i if i == 'all' else int(i) for i in args.f]
+    args.f = [i if i == 'all' or not i.isdigit() else int(i) for i in args.f]
 
     if not isdir(args.o):
         maybe_mkdir_p(args.o)
@@ -850,15 +857,20 @@ def predict_entry_point_modelfolder():
         device = torch.device('cuda')
     else:
         device = torch.device('mps')
-    print('ffesfefjwhwkuhwiuerw')
+    csv_name = args.f[0] + '_' + ''.join(str(x) for x in args.MultiMod) + '.csv'
+    csv_path = os.path.join(args.o, csv_name)
+    with open(csv_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['T1_channel','T1ce_channel','T2_channel','FLAIR_channel'])
+        writer.writerow(['T1_channel','T1ce_channel','T2_channel','FLAIR_channel'])
     predictor = nnUNetPredictor(tile_step_size=args.step_size,
                                 use_gaussian=True,
                                 use_mirroring=not args.disable_tta,
                                 perform_everything_on_gpu=True,
                                 device=device,
-                                verbose=args.verbose,MultiMod=args.MultiMod)
+                                verbose=args.verbose,MultiMod=args.MultiMod,csv_path=csv_path)
     predictor.initialize_from_trained_model_folder(args.m, args.f, args.chk)
-    predictor.predict_from_files(args.i, args.o, save_probabilities=args.save_probabilities,
+    predictor.predict_from_files(args.i, args.o, csv_path, save_probabilities=args.save_probabilities,
                                  overwrite=not args.continue_prediction,
                                  num_processes_preprocessing=args.npp,
                                  num_processes_segmentation_export=args.nps,
