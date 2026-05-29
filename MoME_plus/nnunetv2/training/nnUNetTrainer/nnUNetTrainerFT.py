@@ -15,6 +15,7 @@ from batchgenerators.utilities.file_and_folder_operations import join
 from torch._dynamo import OptimizedModule
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from nnunetv2.paths import nnUNet_raw
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.nnUNetTrainer.Dispatch_network import ClsDispatchNet
 from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
@@ -25,7 +26,9 @@ EXPERT_BASE = (
     "/workspace/models_weights/mome_brain_tumor/"
     "nnUNetTrainer__nnUNetPlans__3d_fullres/fold_MoME_plus"
 )
-DATASPLIT_PATH = "/workspace/data/mome_training/Dataset100_BrainTumor/datasplit.json"
+# DATASPLIT_PATH is derived dynamically from nnUNet_raw + the active dataset name
+# at do_split() time (see below). Hardcoding it broke when bumping dataset IDs.
+DATASPLIT_FILENAME = "datasplit.json"
 
 # Fine-tuning hyperparameters
 FT_INITIAL_LR = 1e-4
@@ -203,14 +206,28 @@ class nnUNetTrainerFT(nnUNetTrainer):
         self.current_epoch += 1
 
     def do_split(self):
-        with open(DATASPLIT_PATH, "r") as f:
+        # datasplit lives next to the raw dataset (written by apply_mome_preprocessing.py).
+        # Fold name = the trainer's `self.fold` (passed via CLI); keys are looked up
+        # under that name in train/val so multiple FT runs can coexist on one dataset.
+        datasplit_path = join(
+            nnUNet_raw, self.plans_manager.dataset_name, DATASPLIT_FILENAME
+        )
+        with open(datasplit_path, "r") as f:
             data = json.load(f)
 
-        tr_keys = data["train"]["BrainTumorFT"]
-        val_keys = data["val"]["BrainTumorFT"]
+        fold_key = str(self.fold)
+        try:
+            tr_keys = data["train"][fold_key]
+            val_keys = data["val"][fold_key]
+        except KeyError as exc:
+            available = sorted(data.get("train", {}).keys())
+            raise KeyError(
+                f"Fold '{fold_key}' not found in {datasplit_path}. "
+                f"Available train folds: {available}"
+            ) from exc
 
-        self.print_to_log_file("train keys: ", tr_keys)
-        self.print_to_log_file("val keys: ", val_keys)
+        self.print_to_log_file("datasplit:", datasplit_path)
+        self.print_to_log_file("fold:", fold_key)
         self.print_to_log_file("num of tr_keys: ", len(tr_keys))
         self.print_to_log_file("num of val_keys: ", len(val_keys))
         self.print_to_log_file("num of batch size: ", self.batch_size)
