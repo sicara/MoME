@@ -8,6 +8,7 @@ Subclass of the MoME+ nnUNetTrainer that overrides:
 """
 
 import json
+import os
 
 import numpy as np
 import torch
@@ -22,9 +23,12 @@ from nnunetv2.run.load_pretrained_weights import load_pretrained_weights
 from nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-EXPERT_BASE = (
+# Location of the pretrained expert checkpoints. Overridable via MOME_EXPERT_BASE
+# (exported by run_finetune_mome.sh); falls back to the in-repo default.
+EXPERT_BASE = os.environ.get(
+    "MOME_EXPERT_BASE",
     "/workspace/models_weights/mome_brain_tumor/"
-    "nnUNetTrainer__nnUNetPlans__3d_fullres/fold_MoME_plus"
+    "nnUNetTrainer__nnUNetPlans__3d_fullres/fold_MoME_plus",
 )
 # DATASPLIT_PATH is derived dynamically from nnUNet_raw + the active dataset name
 # at do_split() time (see below). Hardcoding it broke when bumping dataset IDs.
