@@ -76,9 +76,6 @@ class nnUNetTrainerFT(nnUNetTrainer):
             load_pretrained_weights(
                 self.network1, f"{EXPERT_BASE}/checkpoint_best1.pth", verbose=True
             )
-            # Expert 1 (T1) — frozen: only T1ce+Flair available, T1 always zero-filled
-            for p in self.network1.parameters():
-                p.requires_grad = False
 
             # Expert 2 (T1ce)
             self.network2 = self.build_network_architecture(
@@ -97,9 +94,6 @@ class nnUNetTrainerFT(nnUNetTrainer):
             load_pretrained_weights(
                 self.network3, f"{EXPERT_BASE}/checkpoint_best3.pth", verbose=True
             )
-            # Expert 3 (T2) — frozen: only T1ce+Flair available, T2 always zero-filled
-            for p in self.network3.parameters():
-                p.requires_grad = False
 
             # Expert 4 (FLAIR)
             self.network4 = self.build_network_architecture(
@@ -136,22 +130,6 @@ class nnUNetTrainerFT(nnUNetTrainer):
                 "You have called self.initialize even though the trainer was already initialized. "
                 "That should not happen."
             )
-
-    def configure_optimizers(self):
-        # Exclude frozen T1 (network1) and T2 (network3) experts — only T1ce+Flair are present.
-        trainable = (
-            list(self.network2.parameters())
-            + list(self.network4.parameters())
-            + list(self.dispatch_network.parameters())
-            + list(self.network.parameters())
-        )
-        optimizer = torch.optim.SGD(
-            trainable, self.initial_lr,
-            weight_decay=self.weight_decay, momentum=0.99, nesterov=True,
-        )
-        from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
-        lr_scheduler = PolyLRScheduler(optimizer, self.initial_lr, self.num_epochs)
-        return optimizer, lr_scheduler
 
     def load_pretrained_mome_weights(self, checkpoint_path: str) -> None:
         """Load only network weights from a MoME+ checkpoint (all 6 networks).
