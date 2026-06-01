@@ -60,7 +60,7 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
             # oversampling foreground will improve stability of model training, especially if many patches are empty
             # (Lung for example)
             
-            mod_comb_id = random.randint(0, 14)
+            mod_comb_id = random.choice([1, 3, 8])  # t1ce-only, flair-only, t1ce+flair
             load_mod = ['t1','t1ce','t2', 'flair']#Load_Mod[mod_comb_id]
             sup_loss = Sup_Loss[mod_comb_id]
             sup_losses.append(sup_loss)
