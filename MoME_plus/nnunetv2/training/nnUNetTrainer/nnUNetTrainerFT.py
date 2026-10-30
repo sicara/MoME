@@ -38,6 +38,9 @@ DATASPLIT_FILENAME = "datasplit.json"
 FT_INITIAL_LR = 1e-4
 FT_NUM_EPOCHS = 200
 FT_EARLY_STOPPING_PATIENCE = 30
+# Sup_Loss indices drawn for validation: the inference modes only, t1ce-only
+# (MultiMod [0,1,0,0]) and t1ce+flair ([0,1,0,1]).
+FT_VAL_MODALITY_COMBINATIONS = (1, 8)
 
 
 class nnUNetTrainerFT(nnUNetTrainer):
@@ -208,6 +211,16 @@ class nnUNetTrainerFT(nnUNetTrainer):
             self.num_epochs = current_epoch + 1  # Force training loop to stop
 
         self.current_epoch += 1
+
+    def get_plain_dataloaders(self, initial_patch_size, dim):
+        """Parent dataloaders, validation restricted to the inference modalities.
+
+        Validation drives checkpoint selection and early stopping, so it skips the
+        flair-only combination that inference never runs.
+        """
+        dl_tr, dl_val = super().get_plain_dataloaders(initial_patch_size, dim)
+        dl_val.modality_combinations = FT_VAL_MODALITY_COMBINATIONS
+        return dl_tr, dl_val
 
     def run_training(self):
         """Parent training loop, bounded by the live num_epochs.

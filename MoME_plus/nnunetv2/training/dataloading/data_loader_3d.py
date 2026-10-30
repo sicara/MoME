@@ -4,6 +4,9 @@ from nnunetv2.training.dataloading.nnunet_dataset import nnUNetDataset
 import random
 
 class nnUNetDataLoader3D(nnUNetDataLoaderBase):
+    # Sup_Loss indices drawn per case: t1ce-only, flair-only, t1ce+flair
+    modality_combinations = (1, 3, 8)
+
     def generate_train_batch(self):
         selected_keys = self.get_indices()
         # preallocate memory for data and seg
@@ -60,7 +63,7 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
             # oversampling foreground will improve stability of model training, especially if many patches are empty
             # (Lung for example)
             
-            mod_comb_id = random.choice([1, 3, 8])  # t1ce-only, flair-only, t1ce+flair
+            mod_comb_id = random.choice(self.modality_combinations)
             load_mod = ['t1','t1ce','t2', 'flair']#Load_Mod[mod_comb_id]
             sup_loss = Sup_Loss[mod_comb_id]
             sup_losses.append(sup_loss)
