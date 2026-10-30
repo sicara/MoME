@@ -209,6 +209,36 @@ class nnUNetTrainerFT(nnUNetTrainer):
 
         self.current_epoch += 1
 
+    def run_training(self):
+        """Parent training loop, bounded by the live num_epochs.
+
+        The parent iterates over a range built once from num_epochs, so the
+        early-stopping update of num_epochs in on_epoch_end would never stop it.
+        """
+        self.on_train_start()
+
+        while self.current_epoch < self.num_epochs:
+            self.on_epoch_start()
+
+            self.on_train_epoch_start()
+            train_outputs = []
+            r = self.current_epoch / self.num_epochs
+            self.print_to_log_file('Current loss weight: ', r)
+            for batch_id in range(self.num_iterations_per_epoch):
+                train_outputs.append(self.train_step(next(self.dataloader_train), r))
+            self.on_train_epoch_end(train_outputs)
+
+            with torch.no_grad():
+                self.on_validation_epoch_start()
+                val_outputs = []
+                for batch_id in range(self.num_val_iterations_per_epoch):
+                    val_outputs.append(self.validation_step(next(self.dataloader_val)))
+                self.on_validation_epoch_end(val_outputs)
+
+            self.on_epoch_end()
+
+        self.on_train_end()
+
     def do_split(self):
         # datasplit lives next to the raw dataset (written by apply_mome_preprocessing.py).
         # Fold name = the trainer's `self.fold` (passed via CLI); keys are looked up
