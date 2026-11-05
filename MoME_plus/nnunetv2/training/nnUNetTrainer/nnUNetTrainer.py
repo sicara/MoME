@@ -1526,12 +1526,12 @@ class nnUNetTrainer(object):
             self.initialize()
 
         if isinstance(filename_or_checkpoint, str):
-            checkpoint = torch.load(filename_or_checkpoint, map_location=self.device)
-            checkpoint1 = torch.load(filename_or_checkpoint.replace('latest','latest1').replace('best','best1'), map_location=self.device)
-            checkpoint2 = torch.load(filename_or_checkpoint.replace('latest','latest2').replace('best','best2'), map_location=self.device)
-            checkpoint3 = torch.load(filename_or_checkpoint.replace('latest','latest3').replace('best','best3'), map_location=self.device)
-            checkpoint4 = torch.load(filename_or_checkpoint.replace('latest','latest4').replace('best','best4'), map_location=self.device)
-            checkpoint_dispatch = torch.load(filename_or_checkpoint.replace('latest','latest_dispatch').replace('best','best_dispatch'), map_location=self.device)
+            checkpoint = torch.load(filename_or_checkpoint, map_location=self.device, weights_only=False)
+            checkpoint1 = torch.load(filename_or_checkpoint.replace('latest','latest1').replace('best','best1'), map_location=self.device, weights_only=False)
+            checkpoint2 = torch.load(filename_or_checkpoint.replace('latest','latest2').replace('best','best2'), map_location=self.device, weights_only=False)
+            checkpoint3 = torch.load(filename_or_checkpoint.replace('latest','latest3').replace('best','best3'), map_location=self.device, weights_only=False)
+            checkpoint4 = torch.load(filename_or_checkpoint.replace('latest','latest4').replace('best','best4'), map_location=self.device, weights_only=False)
+            checkpoint_dispatch = torch.load(filename_or_checkpoint.replace('latest','latest_dispatch').replace('best','best_dispatch'), map_location=self.device, weights_only=False)
 
         # if state dict comes from nn.DataParallel but we use non-parallel model here then the state dict keys do not
         # match. Use heuristic to make it match
