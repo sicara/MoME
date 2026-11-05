@@ -172,6 +172,17 @@ class nnUNetTrainerFT(nnUNetTrainer):
 
         self.print_to_log_file("All 6 MoME+ networks loaded. Starting fresh from epoch 0.")
 
+    def load_checkpoint(self, filename_or_checkpoint) -> None:
+        """Parent load_checkpoint + early-stopping counter rebuilt from the EMA history."""
+        super().load_checkpoint(filename_or_checkpoint)
+        ema_history = self.logger.my_fantastic_logging['ema_fg_dice'][:self.current_epoch]
+        if ema_history:
+            self._epochs_since_improvement = len(ema_history) - 1 - int(np.argmax(ema_history))
+        self.print_to_log_file(
+            f"Resumed at epoch {self.current_epoch}, best EMA {self._best_ema}, "
+            f"{self._epochs_since_improvement} epochs since improvement"
+        )
+
     def on_epoch_end(self):
         """Parent on_epoch_end + early stopping."""
         # Run parent logic (logging, checkpointing, best EMA tracking)
