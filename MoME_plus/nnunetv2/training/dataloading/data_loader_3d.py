@@ -6,6 +6,9 @@ import random
 class nnUNetDataLoader3D(nnUNetDataLoaderBase):
     # Sup_Loss indices drawn per case: t1ce-only, flair-only, t1ce+flair
     modality_combinations = (1, 3, 8)
+    # Cases stored without FLAIR (key suffix "_t1ce") are always drawn t1ce-only.
+    t1ce_only_key_suffix = "_t1ce"
+    t1ce_only_combination = 1
 
     def generate_train_batch(self):
         selected_keys = self.get_indices()
@@ -63,7 +66,10 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
             # oversampling foreground will improve stability of model training, especially if many patches are empty
             # (Lung for example)
             
-            mod_comb_id = random.choice(self.modality_combinations)
+            if i.endswith(self.t1ce_only_key_suffix):
+                mod_comb_id = self.t1ce_only_combination
+            else:
+                mod_comb_id = random.choice(self.modality_combinations)
             load_mod = ['t1','t1ce','t2', 'flair']#Load_Mod[mod_comb_id]
             sup_loss = Sup_Loss[mod_comb_id]
             sup_losses.append(sup_loss)
