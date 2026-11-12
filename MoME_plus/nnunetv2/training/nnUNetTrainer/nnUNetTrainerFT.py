@@ -38,6 +38,9 @@ DATASPLIT_FILENAME = "datasplit.json"
 FT_INITIAL_LR = 1e-4
 FT_NUM_EPOCHS = 200
 FT_EARLY_STOPPING_PATIENCE = 30
+# Sup_Loss indices drawn for validation: the inference modes only, t1ce-only
+# (MultiMod [0,1,0,0]) and t1ce+flair ([0,1,0,1]).
+FT_VAL_MODALITY_COMBINATIONS = (1, 8)
 
 
 class nnUNetTrainerFT(nnUNetTrainer):
@@ -169,6 +172,17 @@ class nnUNetTrainerFT(nnUNetTrainer):
 
         self.print_to_log_file("All 6 MoME+ networks loaded. Starting fresh from epoch 0.")
 
+    def load_checkpoint(self, filename_or_checkpoint) -> None:
+        """Parent load_checkpoint + early-stopping counter rebuilt from the EMA history."""
+        super().load_checkpoint(filename_or_checkpoint)
+        ema_history = self.logger.my_fantastic_logging['ema_fg_dice'][:self.current_epoch]
+        if ema_history:
+            self._epochs_since_improvement = len(ema_history) - 1 - int(np.argmax(ema_history))
+        self.print_to_log_file(
+            f"Resumed at epoch {self.current_epoch}, best EMA {self._best_ema}, "
+            f"{self._epochs_since_improvement} epochs since improvement"
+        )
+
     def on_epoch_end(self):
         """Parent on_epoch_end + early stopping."""
         # Run parent logic (logging, checkpointing, best EMA tracking)
@@ -208,6 +222,46 @@ class nnUNetTrainerFT(nnUNetTrainer):
             self.num_epochs = current_epoch + 1  # Force training loop to stop
 
         self.current_epoch += 1
+
+    def get_plain_dataloaders(self, initial_patch_size, dim):
+        """Parent dataloaders, validation restricted to the inference modalities.
+
+        Validation drives checkpoint selection and early stopping, so it skips the
+        flair-only combination that inference never runs.
+        """
+        dl_tr, dl_val = super().get_plain_dataloaders(initial_patch_size, dim)
+        dl_val.modality_combinations = FT_VAL_MODALITY_COMBINATIONS
+        return dl_tr, dl_val
+
+    def run_training(self):
+        """Parent training loop, bounded by the live num_epochs.
+
+        The parent iterates over a range built once from num_epochs, so the
+        early-stopping update of num_epochs in on_epoch_end would never stop it.
+        """
+        self.on_train_start()
+
+        while self.current_epoch < self.num_epochs:
+            self.on_epoch_start()
+
+            self.on_train_epoch_start()
+            train_outputs = []
+            r = self.current_epoch / self.num_epochs
+            self.print_to_log_file('Current loss weight: ', r)
+            for batch_id in range(self.num_iterations_per_epoch):
+                train_outputs.append(self.train_step(next(self.dataloader_train), r))
+            self.on_train_epoch_end(train_outputs)
+
+            with torch.no_grad():
+                self.on_validation_epoch_start()
+                val_outputs = []
+                for batch_id in range(self.num_val_iterations_per_epoch):
+                    val_outputs.append(self.validation_step(next(self.dataloader_val)))
+                self.on_validation_epoch_end(val_outputs)
+
+            self.on_epoch_end()
+
+        self.on_train_end()
 
     def do_split(self):
         # datasplit lives next to the raw dataset (written by apply_mome_preprocessing.py).
