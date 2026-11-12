@@ -6,6 +6,7 @@ Subclass of nnUNetTrainerFT that changes:
 - no best checkpoint before SELECTION_WARMUP_EPOCHS, so the EMA is not anchored on epoch 0
 - foreground oversampling raised to favour small lesions
 - latest checkpoint saved every 2 epochs
+- validation restricted to the inference modes (t1ce-only and t1ce+flair)
 """
 
 import numpy as np
@@ -21,6 +22,9 @@ SELECTION_WARMUP_EPOCHS = 15
 CORE_EARLY_STOPPING_PATIENCE = 40
 CORE_OVERSAMPLE_FOREGROUND_PERCENT = 0.5
 CORE_SAVE_EVERY = 2
+# Sup_Loss indices drawn for validation: the inference modes only, t1ce-only
+# (MultiMod [0,1,0,0]) and t1ce+flair ([0,1,0,1]).
+CORE_VAL_MODALITY_COMBINATIONS = (1, 8)
 
 
 class nnUNetTrainerFTCore(nnUNetTrainerFT):
@@ -33,6 +37,16 @@ class nnUNetTrainerFTCore(nnUNetTrainerFT):
         self._early_stopping_patience = CORE_EARLY_STOPPING_PATIENCE
         self.oversample_foreground_percent = CORE_OVERSAMPLE_FOREGROUND_PERCENT
         self.save_every = CORE_SAVE_EVERY
+
+    def get_plain_dataloaders(self, initial_patch_size, dim):
+        """Parent dataloaders, validation restricted to the inference modalities.
+
+        Validation drives checkpoint selection and early stopping, so it skips the
+        flair-only combination that inference never runs.
+        """
+        dl_tr, dl_val = super().get_plain_dataloaders(initial_patch_size, dim)
+        dl_val.modality_combinations = CORE_VAL_MODALITY_COMBINATIONS
+        return dl_tr, dl_val
 
     def _core_ema_history(self) -> list:
         """EMA of the mean NCR/ET pseudo Dice, one value per logged epoch."""
